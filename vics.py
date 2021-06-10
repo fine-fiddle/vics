@@ -1,5 +1,6 @@
 import sqlite3
 import argparse
+import logging
 
 # Optional argument to use a listed database file. otherwise use vics.sqlite
 # argparse with usage
@@ -12,12 +13,30 @@ if args.sqlitedb:
     sqlitedb = args.sqlitedb
 else:
     sqlitedb = "vics.sqlite"
+logging.info("database file: {sqlitedb}")
 
 con = sqlite3.connect(sqlitedb)
 cur = con.cursor()
 
-# TODO: check if table exists before creatign
-cur.execute('''CREATE TABLE el_todo (date text, b64image text, sha text, tags text)''')
+def sqlite_table_schema(conn, name):
+    """Return a string representing the table's CREATE. via https://techoverflow.net/2019/10/14/how-to-get-schema-of-sqlite3-table-in-python/"""
+    cursor = conn.execute("SELECT sql FROM sqlite_master WHERE name=?;", [name])
+    sql = cursor.fetchone()[0]
+    cursor.close()
+    return sql
+
+table_creation_string = '''CREATE TABLE el_todo (date text, b64image text, sha text, tags text)'''
+try:
+    el_todo_schema = sqlite_table_schema(con, 'el_todo')
+    if table_creation_string != el_todo_schema:
+        schema_mismatch_error = f"schema mismatch. \n\nExpected: {table_creation_string}\nFound: {el_todo_schema}\n"
+        logging.critical(schema_mismatch_error)
+        exit(schema_mismatch_error)
+except TypeError:
+    logging.info("Table 'el_todo' not found, creating.")
+    cur.execute(table_creation_string)
+    con.commit()
+
 date = "2021-05-05"
 b64image = "abcdefg1234"
 sha = "123"
